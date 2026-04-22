@@ -23,6 +23,8 @@ Expected output: Charts and reports in output/charts/
 
 import sys
 import warnings
+import os
+import pickle
 warnings.filterwarnings('ignore')  # Hide warning messages (they're not important)
 
 # Import all our custom modules
@@ -31,6 +33,11 @@ from src.data_exploration import display_dataset_info, visualize_class_distribut
 from src.model_trainer import train_test_split_data, train_logistic_regression, train_random_forest
 from src.model_evaluator import evaluate_model, print_detailed_report, compare_models
 from src.visualizer import plot_confusion_matrix, plot_metrics_comparison, plot_accuracy_comparison, plot_class_distribution, create_summary_report
+from src.live_predictor import cli_live_input
+
+# Create models directory if it doesn't exist
+if not os.path.exists('models'):
+    os.makedirs('models')
 
 
 def main():
@@ -91,11 +98,21 @@ def main():
     print("          → Uses mathematical optimization to find best line")
     lr_model = train_logistic_regression(X_train, y_train)
     
+    # Save Logistic Regression model
+    with open('models/logistic_regression.pkl', 'wb') as f:
+        pickle.dump(lr_model, f)
+    print("[✓] Logistic Regression model saved to models/logistic_regression.pkl")
+    
     # ================== STEP 9: TRAIN RANDOM FOREST ==================
     print("\n[STEP 9/14] Training Random Forest Model...")
     print("          → Ensemble of 50 decision trees")
     print("          → Trees vote on prediction (majority wins)")
     rf_model = train_random_forest(X_train, y_train)
+    
+    # Save Random Forest model
+    with open('models/random_forest.pkl', 'wb') as f:
+        pickle.dump(rf_model, f)
+    print("[✓] Random Forest model saved to models/random_forest.pkl")
     
     # ================== STEP 10: MAKE PREDICTIONS ==================
     print("\n[STEP 10/14] Making Predictions on Test Set...")
@@ -154,6 +171,8 @@ def main():
     print(f"  • Improvement:         +{(metrics_rf['accuracy']-metrics_lr['accuracy'])*100:.2f}%")
     
     print("\nOUTPUT FILES SAVED:")
+    print("  • models/logistic_regression.pkl")
+    print("  • models/random_forest.pkl")
     print("  • output/charts/confusion_matrix_logistic_regression.png")
     print("  • output/charts/confusion_matrix_random_forest.png")
     print("  • output/charts/accuracy_comparison.png")
@@ -166,6 +185,52 @@ def main():
     print("  $ streamlit run app.py")
     
     print("\n" + "="*70)
+    
+    # ================== BONUS: TEST SAMPLE DATA ==================
+    print("\n" + "="*70)
+    print("TESTING SAMPLE DATA (Fraud vs Non-Fraud)")
+    print("="*70)
+    
+    import numpy as np
+    
+    # Sample legitimate transaction
+    legit_data = "0, -1.35980713, -0.0727811733, 2.53634674, 1.37815522, -0.33832077, 0.462387778, 0.239598554, 0.0986979013, 0.36378697, 0.090794172, -0.551599533, -0.617800856, -0.991389847, -0.311169354, 1.46817697, -0.470400525, 0.207971242, 0.0257905802, 0.40399296, 0.251412098, -0.0183067779, 0.277837576, -0.11047391, 0.0669280749, 0.128539358, -0.189114844, 0.133558377, -0.0210530535, 149.62"
+    
+    # Sample fraudulent transaction
+    fraud_data = "406, -2.31222654, 1.95199201, -1.60985073, 3.99790559, -0.522187865, -1.42654532, -2.53738731, 1.39165725, -2.77008928, -2.77227214, 3.20203321, -2.89990739, -0.595221881, -4.28925378, 0.38972412, -1.14074718, -2.83005567, -0.0168224682, 0.416955705, 0.126910559, 0.517232371, -0.0350493686, -0.465211076, 0.320198199, 0.0445191675, 0.177839798, 0.261145003, -0.143275875, 0.0"
+    
+    print("\n[TEST 1] LEGITIMATE TRANSACTION")
+    print("-" * 70)
+    legit_values = np.array([float(v.strip()) for v in legit_data.split(',')]).reshape(1, -1)
+    legit_pred_lr = lr_model.predict(legit_values)[0]
+    legit_prob_lr = lr_model.predict_proba(legit_values)[0]
+    legit_pred_rf = rf_model.predict(legit_values)[0]
+    legit_prob_rf = rf_model.predict_proba(legit_values)[0]
+    
+    print(f"Sample Data: {legit_data}")
+    print(f"\n  Logistic Regression: {'🚨 FRAUDULENT' if legit_pred_lr == 1 else '✅ LEGITIMATE'}")
+    print(f"    Confidence: {(legit_prob_lr[1] if legit_pred_lr == 1 else legit_prob_lr[0])*100:.2f}%")
+    print(f"\n  Random Forest: {'🚨 FRAUDULENT' if legit_pred_rf == 1 else '✅ LEGITIMATE'}")
+    print(f"    Confidence: {(legit_prob_rf[1] if legit_pred_rf == 1 else legit_prob_rf[0])*100:.2f}%")
+    
+    print("\n[TEST 2] FRAUDULENT TRANSACTION")
+    print("-" * 70)
+    fraud_values = np.array([float(v.strip()) for v in fraud_data.split(',')]).reshape(1, -1)
+    fraud_pred_lr = lr_model.predict(fraud_values)[0]
+    fraud_prob_lr = lr_model.predict_proba(fraud_values)[0]
+    fraud_pred_rf = rf_model.predict(fraud_values)[0]
+    fraud_prob_rf = rf_model.predict_proba(fraud_values)[0]
+    
+    print(f"Sample Data: {fraud_data}")
+    print(f"\n  Logistic Regression: {'🚨 FRAUDULENT' if fraud_pred_lr == 1 else '✅ LEGITIMATE'}")
+    print(f"    Confidence: {(fraud_prob_lr[1] if fraud_pred_lr == 1 else fraud_prob_lr[0])*100:.2f}%")
+    print(f"\n  Random Forest: {'🚨 FRAUDULENT' if fraud_pred_rf == 1 else '✅ LEGITIMATE'}")
+    print(f"    Confidence: {(fraud_prob_rf[1] if fraud_pred_rf == 1 else fraud_prob_rf[0])*100:.2f}%")
+    
+    print("\n" + "="*70)
+    
+    # Return models for optional live prediction
+    return rf_model
 
 
 if __name__ == "__main__":
@@ -174,7 +239,19 @@ if __name__ == "__main__":
     Try-except catches any errors and prints them clearly.
     """
     try:
-        main()
+        model = main()
+        
+        # Ask user if they want to try live predictions
+        print("\n" + "="*70)
+        print("LIVE PREDICTION MODE (OPTIONAL)")
+        print("="*70)
+        try:
+            user_choice = input("\nWould you like to test live fraud detection? (yes/no): ").strip().lower()
+            if user_choice in ['yes', 'y']:
+                cli_live_input(model)
+        except KeyboardInterrupt:
+            print("\n\nExiting. Thank you for using Fraud Detection System!")
+        
     except Exception as e:
         print(f"\n[ERROR] An error occurred: {e}")
         sys.exit(1)

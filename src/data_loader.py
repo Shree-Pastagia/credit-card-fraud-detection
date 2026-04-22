@@ -58,7 +58,7 @@ def check_missing_values(df: pd.DataFrame) -> dict:
 
 def sample_dataset(df: pd.DataFrame, sample_size: int = 50000, random_state: int = 42) -> pd.DataFrame:
     """
-    Randomly sample rows from the dataset for faster training.
+    Randomly sample rows from the dataset for faster training while keeping all fraud cases.
     
     Args:
         df (pd.DataFrame): Input dataset
@@ -68,7 +68,17 @@ def sample_dataset(df: pd.DataFrame, sample_size: int = 50000, random_state: int
     Returns:
         pd.DataFrame: Sampled dataset
     """
-    df_sampled = df.sample(n=min(sample_size, len(df)), random_state=random_state)
+    # Keep all fraud cases to ensure models learn to detect them
+    frauds = df[df['Class'] == 1]
+    
+    # Downsample normal cases
+    normals = df[df['Class'] == 0]
+    n_normals = max(0, min(sample_size - len(frauds), len(normals)))
+    normals_sampled = normals.sample(n=n_normals, random_state=random_state)
+    
+    # Combine and shuffle
+    df_sampled = pd.concat([frauds, normals_sampled]).sample(frac=1, random_state=random_state)
+    
     reduction_pct = 100 * (1 - len(df_sampled) / len(df))
     
     print(f"[OK] Dataset sampling:")
